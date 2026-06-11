@@ -1,0 +1,868 @@
+{
+  "name": "AI Social Platform Posting Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_DRIVE_FOLDER_ID",
+          "mode": "list",
+          "cachedResultName": "video",
+          "cachedResultUrl": "YOUR_GOOGLE_DRIVE_URL"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        1488,
+        -2688
+      ],
+      "id": "ea060be7-8316-4bb4-8ecb-0582aa3b46e2",
+      "name": "Google Drive Trigger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7a7a2759-9c09-4e8f-83f0-59328a77ca26",
+              "leftValue": "={{ $json.mimeType || $json.mime_type || '' }}",
+              "rightValue": "video",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1744,
+        -2688
+      ],
+      "id": "b3df0f5f-2d20-4cca-a31e-177020afdfb2",
+      "name": "IF - Only Video"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1984,
+        -2704
+      ],
+      "id": "3398e07b-c26e-45c7-b6d6-a93f35e2b51d",
+      "name": "Download file"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://YOUR_WHISPER_SERVICE_HOST:7000/transcribe",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "video_file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1536,
+        -2432
+      ],
+      "id": "bfe9c57a-1db9-4c54-a76a-4576da9e35b2",
+      "name": "Whisper Transcription",
+      "retryOnFail": false,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://YOUR_OLLAMA_HOST:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: \"qwen2.5vl:7b\",\n  stream: false,\n  format: \"json\",\n  options: {\n    temperature: 0.03,\n    num_predict: 950\n  },\n  prompt: `You are a platform caption writer.\n\nYou must write captions ONLY from this CURRENT VIDEO FACT SHEET.\n\nCurrent video fact sheet:\n${JSON.stringify($('Parse Current Video Fact Sheet').item.json.factSheet)}\n\nAbsolute rules:\n- Do not use any previous video topic.\n- Do not mention any tool, platform, or workflow not present in the fact sheet.\n- Do not mention any term from mustNotMention.\n- Do not assume Google Drive, Postiz, social posting, WhatsApp, Google Calendar, AI agent, or uploaded videos unless the fact sheet includes them.\n- The captions must explain this exact current workflow.\n- The viewer must understand what the workflow does after reading the caption.\n- Use simple, direct language.\n- No vague marketing phrases.\n- No broken or half titles.\n- No generic \"save time\" unless connected to the actual workflow.\n- No fake claims.\n- No unrelated categories.\n\nFacebook:\n- 2 clear complete sentences.\n- Sentence 1: what the workflow does.\n- Sentence 2: what gets automated or what the final output is.\n- No hashtags.\n\nInstagram:\n- 1 clear caption.\n- Add 5 to 7 relevant hashtags based on the fact sheet.\n\nTikTok:\n- 1 short hook-style caption.\n- Add 4 to 6 relevant hashtags.\n- No title.\n\nYouTube:\n- Title under 75 characters.\n- Title must clearly describe the exact workflow.\n- Description must be 2 to 3 complete sentences.\n- Tags must be simple searchable terms from the fact sheet.\n\nThreads:\n- 1 short conversational sentence.\n- No more than 2 hashtags.\n\nReturn ONLY valid JSON.\nDo not include markdown.\nDo not include explanations.\nDo not include text outside JSON.\n\nReturn exactly this JSON structure:\n{\n  \"facebook\": {\n    \"message\": \"\"\n  },\n  \"instagram\": {\n    \"caption\": \"\",\n    \"hashtags\": []\n  },\n  \"tiktok\": {\n    \"caption\": \"\",\n    \"hashtags\": []\n  },\n  \"youtube\": {\n    \"title\": \"\",\n    \"description\": \"\",\n    \"tags\": []\n  },\n  \"threads\": {\n    \"caption\": \"\",\n    \"hashtags\": []\n  }\n}`\n}) }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2544,
+        -2432
+      ],
+      "id": "9e5c39a3-898e-4452-9262-9657eadbeae9",
+      "name": "Ollama Caption Generator",
+      "retryOnFail": false,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.videoId }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2256,
+        -2176
+      ],
+      "id": "8a9d1659-45f3-4a1d-9d2b-0d2a42a4220b",
+      "name": "Download Video Again",
+      "retryOnFail": false,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const uploaded = $json;\nconst c = $('Validate Captions and Finalize').item.json || {};\n\n/**\n * Current Postiz integration IDs.\n * Reconnect korle ID change hote pare.\n */\nconst FACEBOOK_ID = 'YOUR_FACEBOOK_INTEGRATION_ID';\nconst INSTAGRAM_ID = 'YOUR_INSTAGRAM_INTEGRATION_ID';\nconst TIKTOK_ID = 'YOUR_TIKTOK_INTEGRATION_ID';\nconst YOUTUBE_ID = 'YOUR_YOUTUBE_INTEGRATION_ID';\nconst THREADS_ID = 'YOUR_THREADS_INTEGRATION_ID';\n\n\nconst X_ID = 'YOUR_X_INTEGRATION_ID';\nconst PINTEREST_ID = 'YOUR_PINTEREST_INTEGRATION_ID';\n\n/**\n * Platform switches.\n */\nconst ENABLE_FACEBOOK = true;\nconst ENABLE_INSTAGRAM = true;\nconst ENABLE_TIKTOK = true;\nconst ENABLE_YOUTUBE = true;\nconst ENABLE_THREADS = true;\n\nconst ENABLE_X = false;\nconst ENABLE_PINTEREST = false;\n\n/**\n * TikTok sandbox/private test:\n * SELF_ONLY\n *\n * TikTok production approve + reconnect korar por:\n * PUBLIC_TO_EVERYONE\n */\nconst TIKTOK_PRIVACY_LEVEL = 'SELF_ONLY';\n\nfunction hasValidId(id) {\n  if (!id || typeof id !== 'string') return false;\n\n  const value = id.trim();\n\n  if (!value) return false;\n  if (value.includes('PASTE_')) return false;\n  if (value.includes('YOUR_')) return false;\n  if (value.toLowerCase() === 'blank') return false;\n\n  return true;\n}\n\nfunction cleanText(value, fallback = '') {\n  if (value === null || value === undefined) return fallback;\n\n  const cleaned = String(value)\n    .replace(/\\r/g, '')\n    .replace(/\\u0000/g, '')\n    .trim();\n\n  return cleaned || fallback;\n}\n\nfunction cleanSingleLine(value, fallback = '') {\n  return cleanText(value, fallback)\n    .replace(/\\n+/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction limitText(value, max, fallback = '') {\n  const text = cleanSingleLine(value, fallback);\n\n  if (text.length <= max) return text;\n\n  const cut = text.slice(0, max + 1);\n  const lastSpace = cut.lastIndexOf(' ');\n\n  return (lastSpace > 20 ? cut.slice(0, lastSpace) : text.slice(0, max))\n    .replace(/[.,;:|/-]+$/g, '')\n    .trim();\n}\n\nfunction makeTikTokTitle(value) {\n  return limitText(value, 80, 'New Video');\n}\n\nfunction makeYouTubeTitle(value) {\n  return limitText(value, 95, 'New Video');\n}\n\nfunction makeYouTubeDescription(value) {\n  const description = cleanText(value);\n\n  if (!description) {\n    return 'This video explains the workflow and shows the main automation process clearly.';\n  }\n\n  return description.slice(0, 4900).trim();\n}\n\nconst uploadId =\n  uploaded.id ||\n  uploaded.uploadId ||\n  uploaded.postiz_upload_id ||\n  uploaded.data?.id ||\n  uploaded.result?.id ||\n  '';\n\nconst uploadPath =\n  uploaded.path ||\n  uploaded.uploadPath ||\n  uploaded.url ||\n  uploaded.data?.path ||\n  uploaded.result?.path ||\n  '';\n\nif (!uploadId) {\n  throw new Error('Postiz upload ID missing. Please check Postiz Upload node response.');\n}\n\nconst media = [\n  {\n    id: uploadId,\n    path: uploadPath,\n  },\n];\n\nconst posts = [];\nconst skippedPlatforms = [];\n\nfunction addPost(platformName, enabled, integrationId, postValue, settings) {\n  if (!enabled) {\n    skippedPlatforms.push(`${platformName}: disabled`);\n    return;\n  }\n\n  if (!hasValidId(integrationId)) {\n    skippedPlatforms.push(`${platformName}: missing integration ID`);\n    return;\n  }\n\n  posts.push({\n    integration: {\n      id: integrationId,\n    },\n    value: [\n      {\n        content: cleanText(postValue),\n        image: media,\n      },\n    ],\n    settings,\n  });\n}\n\n/**\n * Facebook\n */\naddPost(\n  'facebook',\n  ENABLE_FACEBOOK,\n  FACEBOOK_ID,\n  c.facebookMessage || c.instagramCaption || c.youtubeDescription || '',\n  {\n    __type: 'facebook',\n  }\n);\n\n/**\n * Instagram\n */\naddPost(\n  'instagram',\n  ENABLE_INSTAGRAM,\n  INSTAGRAM_ID,\n  c.instagramCaption || c.facebookMessage || c.youtubeDescription || '',\n  {\n    __type: 'instagram',\n    post_type: 'post',\n    is_trial_reel: false,\n    collaborators: [],\n  }\n);\n\n/**\n * TikTok\n */\naddPost(\n  'tiktok',\n  ENABLE_TIKTOK,\n  TIKTOK_ID,\n  c.tiktokCaption || c.instagramCaption || c.youtubeTitle || '',\n  {\n    __type: 'tiktok',\n    title: makeTikTokTitle(c.tiktokCaption || c.youtubeTitle || 'New Video'),\n    privacy_level: TIKTOK_PRIVACY_LEVEL,\n    duet: false,\n    stitch: false,\n    comment: true,\n    autoAddMusic: 'no',\n    brand_content_toggle: false,\n    brand_organic_toggle: false,\n    video_made_with_ai: false,\n    content_posting_method: 'DIRECT_POST',\n  }\n);\n\n/**\n * YouTube - fixed clean payload\n * Tags empty rakha holo, karon eta diye YouTube posting fixed hoyeche.\n */\naddPost(\n  'youtube',\n  ENABLE_YOUTUBE,\n  YOUTUBE_ID,\n  makeYouTubeDescription(\n    c.youtubeDescription ||\n    c.instagramCaption ||\n    c.facebookMessage ||\n    c.contentBrief?.workflowSummary ||\n    ''\n  ),\n  {\n    __type: 'youtube',\n    title: makeYouTubeTitle(\n      c.youtubeTitle ||\n      c.contentBrief?.topic ||\n      c.videoName ||\n      'New Video'\n    ),\n    type: 'public',\n    selfDeclaredMadeForKids: 'no',\n    thumbnail: null,\n    tags: [],\n  }\n);\n\n/**\n * Threads\n */\naddPost(\n  'threads',\n  ENABLE_THREADS,\n  THREADS_ID,\n  c.threadsCaption || c.instagramCaption || c.facebookMessage || '',\n  {\n    __type: 'threads',\n  }\n);\n\n/**\n * X / Twitter\n */\naddPost(\n  'x',\n  ENABLE_X,\n  X_ID,\n  c.xCaption || c.twitterCaption || c.threadsCaption || c.instagramCaption || '',\n  {\n    __type: 'x',\n  }\n);\n\n/**\n * Pinterest\n */\naddPost(\n  'pinterest',\n  ENABLE_PINTEREST,\n  PINTEREST_ID,\n  c.pinterestDescription || c.instagramCaption || c.youtubeDescription || '',\n  {\n    __type: 'pinterest',\n    title: makeYouTubeTitle(c.pinterestTitle || c.youtubeTitle || 'New Video'),\n  }\n);\n\nif (!posts.length) {\n  throw new Error('No valid Postiz integrations found. Enable at least one platform and add its integration ID.');\n}\n\nreturn {\n  json: {\n    postizPayload: {\n      type: 'now',\n      date: new Date().toISOString(),\n      shortLink: false,\n      tags: [],\n      posts,\n    },\n\n    videoName: c.videoName || uploaded.name || '',\n    videoId: c.videoId || '',\n    uploadId,\n    uploadPath,\n    platformCount: posts.length,\n    platforms: posts.map((post) => post.settings.__type),\n    skippedPlatforms,\n    contentBrief: c.contentBrief || {},\n\n    debug: {\n      mode: 'ALL_PLATFORMS_ENABLED',\n      youtubeIntegrationId: YOUTUBE_ID,\n      tiktokIntegrationId: TIKTOK_ID,\n      tiktokPrivacyLevel: TIKTOK_PRIVACY_LEVEL,\n      youtubeTagsDisabled: true,\n    },\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        -1824
+      ],
+      "id": "90d748f4-0819-4f02-bb51-b1f7ac716795",
+      "name": "Build Postiz Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_POSTIZ_DOMAIN/api/public/v1/posts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "YOUR_POSTIZ_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.postizPayload) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1744,
+        -1824
+      ],
+      "id": "d75237bb-4f18-4e6a-89a3-36870881d256",
+      "name": "Create Post in Postiz",
+      "retryOnFail": false,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://YOUR_VIDEO_HELPER_SERVICE:7001/analyze-video",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "video_file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 1600000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2240,
+        -2704
+      ],
+      "id": "88070ae9-3e1e-4054-a838-3a7b53dbf7c3",
+      "name": "Visual Summary Helper",
+      "retryOnFail": false,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Google Drive Trigger').item.json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2496,
+        -2704
+      ],
+      "id": "0056cef6-2b43-4e4e-b663-2761a7a27c1c",
+      "name": "Download Video for Whisper"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const visualRaw = $('Visual Summary Helper').item.json || {};\nconst whisper = $('Whisper Transcription').item.json || {};\nconst drive = $('Google Drive Trigger').item.json || {};\n\nconst cleanText = (text = '') =>\n  String(text || '').replace(/\\s+/g, ' ').trim();\n\nconst rawTranscript = cleanText(whisper.text || whisper.raw?.text || '');\n\nconst segments = whisper.segments || whisper.raw?.segments || [];\n\nconst avgLogprobValues = segments\n  .map(s => typeof s.avg_logprob === 'number' ? s.avg_logprob : null)\n  .filter(v => v !== null);\n\nconst noSpeechValues = segments\n  .map(s => typeof s.no_speech_prob === 'number' ? s.no_speech_prob : null)\n  .filter(v => v !== null);\n\nconst temperatureValues = segments\n  .map(s => typeof s.temperature === 'number' ? s.temperature : null)\n  .filter(v => v !== null);\n\nconst avgLogprob = avgLogprobValues.length\n  ? avgLogprobValues.reduce((a, b) => a + b, 0) / avgLogprobValues.length\n  : null;\n\nconst maxNoSpeechProb = noSpeechValues.length\n  ? Math.max(...noSpeechValues)\n  : null;\n\nconst maxTemperature = temperatureValues.length\n  ? Math.max(...temperatureValues)\n  : null;\n\nconst wordCount = rawTranscript.split(/\\s+/).filter(Boolean).length;\n\nconst transcriptReliable =\n  rawTranscript.length > 20 &&\n  wordCount >= 5 &&\n  (avgLogprob === null || avgLogprob > -1.5) &&\n  (maxTemperature === null || maxTemperature < 0.8) &&\n  (maxNoSpeechProb === null || maxNoSpeechProb < 0.75);\n\nconst visualEvidence = {\n  category: visualRaw.category || '',\n  topic: visualRaw.topic || '',\n  main_subject: visualRaw.main_subject || '',\n  visible_action: visualRaw.visible_action || visualRaw.action || '',\n  scene: visualRaw.scene || '',\n  visual_details: visualRaw.visual_details || '',\n  mood: visualRaw.mood || '',\n  caption_angle: visualRaw.caption_angle || '',\n  creative_hooks: Array.isArray(visualRaw.creative_hooks) ? visualRaw.creative_hooks : [],\n  safe_keywords: Array.isArray(visualRaw.safe_keywords) ? visualRaw.safe_keywords : [],\n  avoid_claims: Array.isArray(visualRaw.avoid_claims) ? visualRaw.avoid_claims : [],\n  confidence: visualRaw.confidence ?? null,\n};\n\nconst visualEvidenceText = cleanText([\n  visualEvidence.category,\n  visualEvidence.topic,\n  visualEvidence.main_subject,\n  visualEvidence.visible_action,\n  visualEvidence.scene,\n  visualEvidence.visual_details,\n  visualEvidence.caption_angle,\n  ...(visualEvidence.creative_hooks || []),\n  ...(visualEvidence.safe_keywords || []),\n].join(' '));\n\nconst currentVideoId = cleanText(drive.id || '');\nconst currentVideoName = cleanText(drive.name || '');\n\nreturn {\n  json: {\n    currentVideoId,\n    currentVideoName,\n    generatedAt: new Date().toISOString(),\n\n    transcript: rawTranscript,\n    transcriptReliable,\n    transcriptQuality: {\n      avgLogprob,\n      maxNoSpeechProb,\n      maxTemperature,\n      wordCount,\n    },\n\n    visualRaw,\n    visualEvidence,\n    visualEvidenceText,\n\n    evidenceText: cleanText([\n      `VIDEO FILE: ${currentVideoName}`,\n      `VIDEO ID: ${currentVideoId}`,\n      `TRANSCRIPT: ${rawTranscript}`,\n      `VISUAL EVIDENCE: ${visualEvidenceText}`,\n    ].join('\\n')),\n\n    strictRule:\n      'This evidence belongs only to the current video. Ignore all previous videos, previous topics, previous captions, and previous workflow examples.',\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1824,
+        -2432
+      ],
+      "id": "fe5837eb-9558-4391-ab62-2b42b5c542ae",
+      "name": "Build Content Context"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_POSTIZ_DOMAIN/api/public/v1/upload",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "YOUR_POSTIZ_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 1600000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2528,
+        -2176
+      ],
+      "id": "4aba266a-64e9-47c2-96c5-775dddc6a790",
+      "name": "Postiz Upload",
+      "retryOnFail": false,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://YOUR_OLLAMA_HOST:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: \"qwen2.5vl:7b\",\n  stream: false,\n  format: \"json\",\n  options: {\n    temperature: 0.01,\n    num_predict: 1000\n  },\n  prompt: `You are a strict CURRENT VIDEO FACT EXTRACTOR.\n\nYour job:\nCreate a factual content sheet for the CURRENT uploaded video only.\n\nCurrent video id:\n${$('Build Content Context').item.json.currentVideoId}\n\nCurrent video name:\n${$('Build Content Context').item.json.currentVideoName}\n\nEvidence:\n${$('Build Content Context').item.json.evidenceText}\n\nTranscript reliable:\n${$('Build Content Context').item.json.transcriptReliable}\n\nStrict rules:\n- This is a new video. Ignore any previous video topic.\n- Do not copy old topics such as Google Drive social posting, Postiz, uploaded video posting, WhatsApp, Google Calendar, appointment booking, or AI agent unless they are clearly supported by the CURRENT evidence.\n- Use only the current transcript and current visual evidence.\n- The fact sheet must describe what this exact video is about.\n- Do not write captions.\n- Do not use generic visual labels as the topic.\n- If the visual says only \"computer screen\", \"flowchart\", \"interface\", \"dashboard\", or \"nodes\", use the transcript to understand the purpose.\n- If the transcript clearly explains the workflow, use the transcript as the main source.\n- If a tool/app name is uncertain, describe the function instead of guessing.\n- Every tool/platform must have evidence from the transcript or visual evidence.\n- If the exact tool name is unclear but likely from speech-to-text, normalize only obvious terms:\n  - NADN / N A D N / nadn in workflow context = n8n\n  - Olima / O lama / ollma in AI model context = Ollama\n- workflow_goal must be specific.\n- main_steps must be concrete steps from the current video.\n- final_output must describe what happens at the end of the workflow.\n- must_not_mention must include tools/topics that are NOT supported by this current video but could be confused from old videos.\n\nReturn ONLY valid JSON.\nDo not include markdown.\nDo not include text outside JSON.\n\nReturn exactly this JSON structure:\n{\n  \"current_video_id\": \"\",\n  \"main_topic\": \"\",\n  \"content_type\": \"\",\n  \"workflow_goal\": \"\",\n  \"input_trigger\": \"\",\n  \"main_steps\": [],\n  \"final_output\": \"\",\n  \"tools_or_platforms\": [\n    {\n      \"name\": \"\",\n      \"evidence\": \"\",\n      \"confidence\": 0\n    }\n  ],\n  \"must_mention\": [],\n  \"must_not_mention\": [],\n  \"caption_angle\": \"\",\n  \"confidence\": 0,\n  \"short_rationale\": \"\",\n  \"quality_flags\": []\n}`\n}) }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2080,
+        -2432
+      ],
+      "id": "06e36610-8873-44e7-8418-288102c03701",
+      "name": "Create Current Video Fact Sheet"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const raw = $json.response || '';\nconst ctx = $('Build Content Context').item.json || {};\n\nconst cleanText = (text = '') =>\n  String(text || '').replace(/\\s+/g, ' ').trim();\n\nconst cleanArray = (arr = []) =>\n  Array.isArray(arr) ? arr.map(cleanText).filter(Boolean) : [];\n\nlet cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();\n\nconst match = cleaned.match(/\\{[\\s\\S]*\\}/);\nif (!match) {\n  throw new Error('No JSON object found in fact sheet response: ' + raw);\n}\n\nlet sheet;\ntry {\n  sheet = JSON.parse(match[0]);\n} catch (error) {\n  throw new Error('Failed to parse fact sheet JSON: ' + error.message + ' | Raw: ' + raw);\n}\n\nconst currentVideoId = cleanText(ctx.currentVideoId || '');\nconst modelVideoId = cleanText(sheet.current_video_id || '');\n\nif (modelVideoId && modelVideoId !== currentVideoId) {\n  throw new Error(`Fact sheet videoId mismatch. Expected ${currentVideoId}, got ${modelVideoId}`);\n}\n\nconst toolsOrPlatforms = Array.isArray(sheet.tools_or_platforms)\n  ? sheet.tools_or_platforms\n      .map(item => ({\n        name: cleanText(item.name || ''),\n        evidence: cleanText(item.evidence || ''),\n        confidence: typeof item.confidence === 'number' ? item.confidence : null,\n      }))\n      .filter(item => item.name)\n  : [];\n\nconst factSheet = {\n  currentVideoId,\n  currentVideoName: cleanText(ctx.currentVideoName || ''),\n\n  mainTopic: cleanText(sheet.main_topic || ''),\n  contentType: cleanText(sheet.content_type || ''),\n  workflowGoal: cleanText(sheet.workflow_goal || ''),\n  inputTrigger: cleanText(sheet.input_trigger || ''),\n  mainSteps: cleanArray(sheet.main_steps || []),\n  finalOutput: cleanText(sheet.final_output || ''),\n\n  toolsOrPlatforms,\n  mustMention: cleanArray(sheet.must_mention || []),\n  mustNotMention: cleanArray(sheet.must_not_mention || []),\n  captionAngle: cleanText(sheet.caption_angle || ''),\n  confidence: typeof sheet.confidence === 'number' ? sheet.confidence : null,\n  shortRationale: cleanText(sheet.short_rationale || ''),\n  qualityFlags: cleanArray(sheet.quality_flags || []),\n\n  sourceEvidence: {\n    transcript: cleanText(ctx.transcript || ''),\n    visualEvidenceText: cleanText(ctx.visualEvidenceText || ''),\n    transcriptReliable: ctx.transcriptReliable ?? null,\n  },\n};\n\nif (!factSheet.mainTopic && !factSheet.workflowGoal) {\n  throw new Error('Fact sheet is too weak: missing mainTopic and workflowGoal.');\n}\n\nif (!factSheet.mainSteps.length && !factSheet.finalOutput) {\n  throw new Error('Fact sheet is too weak: missing mainSteps and finalOutput.');\n}\n\nreturn {\n  json: {\n    factSheet,\n\n    // Compatibility for old node references if needed\n    resolvedBrief: {\n      topic: factSheet.mainTopic,\n      contentType: factSheet.contentType,\n      sourceUsed: 'current video evidence',\n      confidence: factSheet.confidence,\n      workflowSummary: factSheet.workflowGoal,\n      toolsOrPlatforms: factSheet.toolsOrPlatforms.map(t => t.name),\n      keyPoints: factSheet.mainSteps,\n      captionAngle: factSheet.captionAngle,\n      avoidTerms: factSheet.mustNotMention,\n      shortRationale: factSheet.shortRationale,\n    },\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2304,
+        -2432
+      ],
+      "id": "a2b0abb9-10a6-460d-94eb-713749931e59",
+      "name": "Parse Current Video Fact Sheet"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const raw = $json.response || '';\nconst drive = $('Google Drive Trigger').item.json || {};\nconst factSheet = $('Parse Current Video Fact Sheet').item.json.factSheet || {};\n\nfunction normalizeTerms(value = '') {\n  return String(value || '')\n    .replace(/\\bN\\s*&\\s*N\\b/gi, 'n8n')\n    .replace(/\\bN\\s+and\\s+N\\b/gi, 'n8n')\n    .replace(/\\bN\\s*8\\s*N\\b/gi, 'n8n')\n    .replace(/\\bN8N\\b/g, 'n8n')\n    .replace(/\\bn8N\\b/g, 'n8n')\n    .replace(/\\bNADN\\b/gi, 'n8n')\n    .replace(/\\bN\\s*A\\s*D\\s*N\\b/gi, 'n8n')\n    .replace(/\\bOlima\\b/gi, 'Ollama')\n    .replace(/\\bO\\s*lama\\b/gi, 'Ollama')\n    .replace(/\\bollma\\b/gi, 'Ollama');\n}\n\nfunction cleanText(text = '') {\n  return normalizeTerms(text)\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction cleanArray(arr = []) {\n  const safeArr = Array.isArray(arr) ? arr : [];\n\n  const output = [];\n\n  for (const item of safeArr) {\n    const cleaned = cleanText(item);\n\n    if (cleaned) {\n      output.push(cleaned);\n    }\n  }\n\n  return output;\n}\n\nfunction uniqueValues(arr = []) {\n  const safeArr = Array.isArray(arr) ? arr : [];\n  const seen = new Set();\n  const output = [];\n\n  for (const item of safeArr) {\n    const cleaned = cleanText(item);\n\n    if (!cleaned) continue;\n\n    const key = cleaned.toLowerCase();\n\n    if (!seen.has(key)) {\n      seen.add(key);\n      output.push(cleaned);\n    }\n  }\n\n  return output;\n}\n\nfunction smartTruncate(text = '', max = 100) {\n  const cleaned = cleanText(text);\n\n  if (cleaned.length <= max) {\n    return cleaned;\n  }\n\n  const cut = cleaned.slice(0, max + 1);\n  const lastSpace = cut.lastIndexOf(' ');\n  const output = lastSpace > 35 ? cut.slice(0, lastSpace) : cleaned.slice(0, max);\n\n  return output\n    .replace(/[.,;:|/-]+$/g, '')\n    .trim();\n}\n\nfunction sentence(text = '') {\n  const cleaned = cleanText(text);\n\n  if (!cleaned) {\n    return '';\n  }\n\n  return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;\n}\n\nfunction lowerFirst(text = '') {\n  const cleaned = cleanText(text);\n\n  if (!cleaned) {\n    return '';\n  }\n\n  return cleaned.charAt(0).toLowerCase() + cleaned.slice(1);\n}\n\nfunction hashtagsToText(arr = [], max = 10) {\n  const safeArr = cleanArray(arr);\n  const output = [];\n\n  for (const item of safeArr.slice(0, max)) {\n    const cleaned = String(item)\n      .replace(/^#/, '')\n      .replace(/\\s+/g, '')\n      .trim();\n\n    if (cleaned) {\n      output.push(`#${cleaned}`);\n    }\n  }\n\n  return output.join(' ');\n}\n\nfunction tagObjects(arr = []) {\n  const safeArr = cleanArray(arr);\n  const output = [];\n\n  for (const item of safeArr) {\n    const value = String(item)\n      .replace(/^#/, '')\n      .trim();\n\n    if (value) {\n      output.push({\n        value,\n        label: value,\n      });\n    }\n  }\n\n  return output;\n}\n\nfunction combineCaption(caption = '', hashtags = [], maxHashtags = 10) {\n  const captionText = cleanText(caption);\n  const hashtagText = hashtagsToText(hashtags, maxHashtags);\n\n  return [captionText, hashtagText]\n    .filter(Boolean)\n    .join('\\n\\n');\n}\n\nlet cleanedResponse = String(raw || '')\n  .replace(/```json/gi, '')\n  .replace(/```/g, '')\n  .trim();\n\nconst jsonMatch = cleanedResponse.match(/\\{[\\s\\S]*\\}/);\n\nif (!jsonMatch) {\n  throw new Error('No JSON object found in caption response: ' + raw);\n}\n\nlet content;\n\ntry {\n  content = JSON.parse(jsonMatch[0]);\n} catch (error) {\n  throw new Error('Failed to parse caption JSON: ' + error.message + ' | Raw: ' + raw);\n}\n\nconst tools = Array.isArray(factSheet.toolsOrPlatforms)\n  ? factSheet.toolsOrPlatforms\n      .map((tool) => cleanText(tool.name || ''))\n      .filter(Boolean)\n  : [];\n\nconst mainSteps = cleanArray(factSheet.mainSteps || []);\nconst mustMention = cleanArray(factSheet.mustMention || []);\nconst mustNotMention = cleanArray(factSheet.mustNotMention || []);\n\nconst sourceText = [\n  factSheet.mainTopic,\n  factSheet.contentType,\n  factSheet.workflowGoal,\n  factSheet.inputTrigger,\n  factSheet.finalOutput,\n  factSheet.captionAngle,\n  factSheet.shortRationale,\n  ...tools,\n  ...mainSteps,\n  ...mustMention,\n].join(' ');\n\nconst sourceLower = sourceText.toLowerCase();\n\nconst stopWords = new Set([\n  'this',\n  'that',\n  'with',\n  'from',\n  'your',\n  'video',\n  'workflow',\n  'automation',\n  'automated',\n  'process',\n  'system',\n  'content',\n  'using',\n  'into',\n  'and',\n  'the',\n  'for',\n  'you',\n  'can',\n  'how',\n  'setup',\n  'step',\n  'steps',\n  'make',\n  'send',\n  'receive',\n  'create',\n  'check',\n  'post',\n  'posts',\n  'caption',\n  'captions',\n]);\n\nconst sourceWords = sourceText\n  .toLowerCase()\n  .replace(/[^a-z0-9\\s]/g, ' ')\n  .split(/\\s+/)\n  .filter(Boolean)\n  .filter((word) => word.length > 2 && !stopWords.has(word));\n\nconst importantTokens = uniqueValues(sourceWords);\n\nfunction relevanceScore(text = '') {\n  const lower = String(text || '').toLowerCase();\n\n  if (!importantTokens.length) {\n    return 1;\n  }\n\n  let hits = 0;\n  const limit = Math.min(importantTokens.length, 10);\n\n  for (const token of importantTokens.slice(0, limit)) {\n    if (lower.includes(token)) {\n      hits += 1;\n    }\n  }\n\n  return hits / limit;\n}\n\nconst suspiciousTerms = [\n  'google drive',\n  'postiz',\n  'whatsapp',\n  'google calendar',\n  'appointment',\n  'ai agent',\n  'openai',\n  'sports',\n  'music',\n  'food',\n  'weather',\n  'game',\n  'gaming',\n  'user experience',\n];\n\nfunction hasUnsupportedSuspiciousTerm(text = '') {\n  const lower = String(text || '').toLowerCase();\n\n  for (const term of suspiciousTerms) {\n    if (lower.includes(term) && !sourceLower.includes(term)) {\n      return term;\n    }\n  }\n\n  for (const term of mustNotMention) {\n    const cleanedTerm = cleanText(term).toLowerCase();\n\n    if (cleanedTerm && lower.includes(cleanedTerm) && !sourceLower.includes(cleanedTerm)) {\n      return term;\n    }\n  }\n\n  return '';\n}\n\nfunction buildBaseTags() {\n  const values = [\n    ...tools,\n    factSheet.mainTopic,\n    factSheet.contentType,\n    ...mainSteps.slice(0, 5),\n    ...(Array.isArray(content.youtube?.tags) ? content.youtube.tags : []),\n  ];\n\n  const cleaned = [];\n\n  for (const item of values) {\n    let value = '';\n\n    if (typeof item === 'string') {\n      value = item;\n    } else if (item && typeof item === 'object') {\n      value = item.value || item.label || item.name || '';\n    }\n\n    value = cleanText(value).replace(/^#/, '');\n\n    if (value) {\n      cleaned.push(value);\n    }\n  }\n\n  return uniqueValues(cleaned).slice(0, 10);\n}\n\nfunction buildYouTubeTitle() {\n  const fromModel = cleanText(content.youtube?.title || '');\n  const topic = cleanText(factSheet.mainTopic || '');\n  const goal = cleanText(factSheet.workflowGoal || '');\n  const angle = cleanText(factSheet.captionAngle || '');\n\n  let title = fromModel;\n\n  if (!title || title.length < 12 || title.length > 75) {\n    title = topic || goal || angle || 'n8n Video Caption Automation Workflow';\n  }\n\n  if (title.length < 25 && goal) {\n    title = `${title}: ${goal}`;\n  }\n\n  return smartTruncate(title, 75);\n}\n\nfunction buildYouTubeDescription(finalTitle, baseTags = []) {\n  const topic = cleanText(factSheet.mainTopic || finalTitle || 'this workflow');\n  const goal = cleanText(factSheet.workflowGoal || '');\n  const trigger = cleanText(factSheet.inputTrigger || '');\n  const output = cleanText(factSheet.finalOutput || '');\n  const rationale = cleanText(factSheet.shortRationale || '');\n  const toolPhrase = tools.length ? tools.slice(0, 6).join(', ') : 'the connected tools';\n\n  const intro = goal\n    ? sentence(`In this video, I walk through ${lowerFirst(goal)}`)\n    : sentence(`In this video, I walk through ${lowerFirst(topic)}`);\n\n  const contextLine = trigger\n    ? sentence(`The workflow starts from ${lowerFirst(trigger)} and uses ${toolPhrase} to complete the process`)\n    : sentence(`The workflow uses ${toolPhrase} to complete the process`);\n\n  const outputLine = output\n    ? sentence(`The final output is ${lowerFirst(output)}`)\n    : sentence('The final output is a ready-to-use social media video post with a clear title, description, and caption');\n\n  const rationaleLine = rationale\n    ? sentence(rationale)\n    : sentence('This setup helps make the publishing process more consistent and reduces repetitive manual caption writing');\n\n  const stepLines = [];\n\n  if (mainSteps.length) {\n    for (const step of mainSteps.slice(0, 6)) {\n      stepLines.push(`- ${sentence(step)}`);\n    }\n  } else {\n    stepLines.push('- Prepare the video content.');\n    stepLines.push('- Generate platform-ready captions.');\n    stepLines.push('- Structure the output for publishing.');\n  }\n\n  const hashtags = hashtagsToText(baseTags, 10);\n\n  return [\n    finalTitle,\n    '',\n    intro,\n    contextLine,\n    outputLine,\n    rationaleLine,\n    '',\n    'What this workflow covers:',\n    stepLines.join('\\n'),\n    '',\n    hashtags,\n  ]\n    .filter(Boolean)\n    .join('\\n')\n    .trim();\n}\n\nfunction buildFallback(baseTags) {\n  const topic = cleanText(factSheet.mainTopic || factSheet.captionAngle || 'Workflow Automation Demo');\n  const goal = cleanText(factSheet.workflowGoal || '');\n  const trigger = cleanText(factSheet.inputTrigger || '');\n  const output = cleanText(factSheet.finalOutput || '');\n  const toolNames = tools.slice(0, 5);\n  const toolPhrase = toolNames.length ? toolNames.join(', ') : 'the connected tools';\n\n  const processSentence = mainSteps.length\n    ? `The workflow includes ${mainSteps.slice(0, 4).map((step) => lowerFirst(step)).join(', ')}.`\n    : goal;\n\n  const facebook = goal && output\n    ? `${sentence(topic)} ${sentence(`${goal}, ending with ${output}`)}`\n    : `${sentence(topic)} ${sentence(processSentence)}`;\n\n  const instagram = goal\n    ? `${topic}: ${goal}`\n    : `${topic} using ${toolPhrase}.`;\n\n  const tiktok = trigger && output\n    ? `${trigger} to ${output} — automated with ${toolPhrase}.`\n    : `${topic} automated with ${toolPhrase}.`;\n\n  const youtubeTitle = buildYouTubeTitle();\n  const youtubeDescription = buildYouTubeDescription(youtubeTitle, baseTags);\n\n  return {\n    facebookMessage: facebook,\n    instagramCaption: combineCaption(instagram, baseTags, 7),\n    tiktokCaption: combineCaption(tiktok, baseTags, 6),\n    youtubeTitle,\n    youtubeDescription,\n    youtubeTags: tagObjects(baseTags),\n    threadsCaption: combineCaption(instagram, baseTags, 2),\n  };\n}\n\nconst baseTags = buildBaseTags();\n\nlet facebookMessage = cleanText(content.facebook?.message || '');\nlet instagramCaption = combineCaption(content.instagram?.caption || '', content.instagram?.hashtags || [], 7);\nlet tiktokCaption = combineCaption(content.tiktok?.caption || '', content.tiktok?.hashtags || [], 6);\nlet youtubeTitle = buildYouTubeTitle();\nlet youtubeDescription = buildYouTubeDescription(youtubeTitle, baseTags);\nlet youtubeTags = tagObjects(baseTags);\nlet threadsCaption = combineCaption(\n  content.threads?.caption || content.instagram?.caption || content.facebook?.message || '',\n  content.threads?.hashtags || [],\n  2\n);\n\nconst combinedOutput = [\n  facebookMessage,\n  instagramCaption,\n  tiktokCaption,\n  youtubeTitle,\n  youtubeDescription,\n  threadsCaption,\n].join(' ');\n\nconst unsupportedTerm = hasUnsupportedSuspiciousTerm(combinedOutput);\nconst score = relevanceScore(combinedOutput);\n\nconst outputLooksWrong =\n  score < 0.25 ||\n  Boolean(unsupportedTerm) ||\n  !youtubeTitle ||\n  youtubeTitle.length < 12 ||\n  youtubeTitle.length > 75 ||\n  !youtubeDescription ||\n  youtubeDescription.length < 120;\n\nlet fallbackUsed = false;\n\nif (outputLooksWrong) {\n  const fallback = buildFallback(baseTags);\n\n  facebookMessage = fallback.facebookMessage;\n  instagramCaption = fallback.instagramCaption;\n  tiktokCaption = fallback.tiktokCaption;\n  youtubeTitle = fallback.youtubeTitle;\n  youtubeDescription = fallback.youtubeDescription;\n  youtubeTags = fallback.youtubeTags;\n  threadsCaption = fallback.threadsCaption;\n\n  fallbackUsed = true;\n}\n\nreturn {\n  json: {\n    videoName: cleanText(drive.name || factSheet.currentVideoName || ''),\n    videoId: cleanText(drive.id || factSheet.currentVideoId || ''),\n\n    contentBrief: {\n      topic: cleanText(factSheet.mainTopic || ''),\n      contentType: cleanText(factSheet.contentType || ''),\n      sourceUsed: 'current video fact sheet',\n      confidence: factSheet.confidence ?? null,\n      workflowSummary: cleanText(factSheet.workflowGoal || ''),\n      inputTrigger: cleanText(factSheet.inputTrigger || ''),\n      finalOutput: cleanText(factSheet.finalOutput || ''),\n      toolsOrPlatforms: tools,\n      keyPoints: mainSteps,\n      captionAngle: cleanText(factSheet.captionAngle || ''),\n      avoidTerms: mustNotMention,\n      shortRationale: cleanText(factSheet.shortRationale || ''),\n    },\n\n    qualityCheck: {\n      relevanceScore: score,\n      fallbackUsed,\n      unsupportedTerm,\n      importantTokens: importantTokens.slice(0, 25),\n      currentVideoId: cleanText(factSheet.currentVideoId || ''),\n      youtubeDescriptionLength: youtubeDescription.length,\n    },\n\n    facebookMessage,\n    instagramCaption,\n    tiktokCaption,\n    youtubeTitle: smartTruncate(youtubeTitle, 75),\n    youtubeDescription,\n    youtubeTags,\n    threadsCaption,\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        -2160
+      ],
+      "id": "9b27cc17-92bf-4598-8830-7ce34527c356",
+      "name": "Validate Captions and Finalize"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const drive = $('Google Drive Trigger').item.json || {};\nconst captions = $('Validate Captions and Finalize').item.json || {};\nconst payloadData = $('Build Postiz Payload').item.json || {};\nconst uploadData = $('Postiz Upload').item.json || {};\nconst postizResponse = $json || {};\n\nconst clean = (value = '') =>\n  String(value || '').replace(/\\s+/g, ' ').trim();\n\nconst truncate = (value = '', max = 3000) => {\n  const text = clean(value);\n  return text.length > max ? text.slice(0, max - 3).trim() + '...' : text;\n};\n\nconst executionId =\n  typeof $execution !== 'undefined' && $execution.id\n    ? String($execution.id)\n    : String(Date.now());\n\nconst timestamp = new Date().toISOString();\n\nconst posts = Array.isArray(payloadData.postizPayload?.posts)\n  ? payloadData.postizPayload.posts\n  : [];\n\nconst skippedPlatforms = Array.isArray(payloadData.skippedPlatforms)\n  ? payloadData.skippedPlatforms\n  : [];\n\nconst body = postizResponse.body || postizResponse;\n\nconst statusCode = Number(\n  postizResponse.statusCode ||\n  postizResponse.status ||\n  postizResponse.body?.statusCode ||\n  body.statusCode ||\n  0\n);\n\nconst errorMessage = clean(\n  postizResponse.error?.message ||\n  postizResponse.error ||\n  postizResponse.body?.error?.message ||\n  postizResponse.body?.message ||\n  postizResponse.message ||\n  body.error?.message ||\n  body.error ||\n  body.message ||\n  ''\n);\n\nconst postizPostId = clean(\n  body.id ||\n  body.postId ||\n  body.data?.id ||\n  body.data?.postId ||\n  body.launch?.id ||\n  body.result?.id ||\n  body.post?.id ||\n  body.posts?.[0]?.id ||\n  ''\n);\n\nconst postizUploadId = clean(\n  uploadData.id ||\n  uploadData.uploadId ||\n  uploadData.data?.id ||\n  uploadData.result?.id ||\n  payloadData.uploadId ||\n  ''\n);\n\nconst videoName = clean(\n  captions.videoName ||\n  payloadData.videoName ||\n  drive.name ||\n  ''\n);\n\nconst videoId = clean(\n  captions.videoId ||\n  payloadData.videoId ||\n  drive.id ||\n  ''\n);\n\nconst responseHasError =\n  Boolean(postizResponse.error) ||\n  Boolean(body.error) ||\n  statusCode >= 400 ||\n  String(postizResponse.name || '').toLowerCase().includes('error') ||\n  String(body.name || '').toLowerCase().includes('error');\n\nconst responseLooksEmpty =\n  !postizPostId &&\n  !body.id &&\n  !body.data &&\n  !body.result &&\n  !body.launch &&\n  !Array.isArray(body.posts) &&\n  !body.success &&\n  !body.status &&\n  !statusCode &&\n  !errorMessage;\n\nconst hasTargetPosts = posts.length > 0;\n\nconst success =\n  hasTargetPosts &&\n  !responseHasError &&\n  !responseLooksEmpty;\n\nfunction formatPlatform(value = '') {\n  const p = clean(value).toLowerCase();\n\n  if (p.includes('tiktok')) return 'TikTok';\n  if (p.includes('instagram')) return 'Instagram';\n  if (p.includes('youtube')) return 'YouTube';\n  if (p.includes('facebook')) return 'Facebook';\n  if (p.includes('threads')) return 'Threads';\n  if (p === 'x' || p.includes('twitter')) return 'X';\n  if (p.includes('pinterest')) return 'Pinterest';\n\n  return clean(value || 'Unknown');\n}\n\nfunction titleFromCaption(text = '') {\n  const cleaned = clean(text);\n\n  if (!cleaned) return '';\n\n  const firstLine = cleaned\n    .split('\\n')\n    .map((line) => clean(line))\n    .find(Boolean) || '';\n\n  if (!firstLine) return '';\n\n  return truncate(firstLine.replace(/^#+\\s*/g, ''), 120);\n}\n\nfunction getFallbackTitle(platform = '', post = {}) {\n  const p = platform.toLowerCase();\n\n  const postContent = clean(post.value?.[0]?.content || '');\n\n  const title =\n    captions.youtubeTitle ||\n    captions.contentBrief?.topic ||\n    payloadData.contentBrief?.topic ||\n    captions.contentBrief?.workflowSummary ||\n    payloadData.contentBrief?.workflowSummary ||\n    titleFromCaption(postContent) ||\n    titleFromCaption(captions.instagramCaption) ||\n    titleFromCaption(captions.facebookMessage) ||\n    titleFromCaption(captions.youtubeDescription) ||\n    titleFromCaption(captions.threadsCaption) ||\n    '';\n\n  if (!title) return '';\n\n  if (p.includes('facebook')) return title;\n  if (p.includes('instagram')) return title;\n  if (p.includes('threads')) return title;\n  if (p.includes('youtube')) return title;\n  if (p.includes('tiktok')) return title;\n  if (p.includes('pinterest')) return title;\n\n  return title;\n}\n\nfunction getPostType(platform = '', post = {}) {\n  const p = platform.toLowerCase();\n  const settings = post.settings || {};\n  const postType = clean(settings.post_type || settings.type || '').toLowerCase();\n\n  if (p.includes('tiktok')) return 'Short Video';\n\n  if (p.includes('instagram')) {\n    if (postType === 'story') return 'Story';\n    if (postType === 'reel') return 'Reel';\n    if (postType === 'post') return 'Post';\n    return 'Post';\n  }\n\n  if (p.includes('youtube')) {\n    return 'Video / Short';\n  }\n\n  if (p.includes('facebook')) {\n    return 'Video / Post';\n  }\n\n  if (p.includes('threads')) {\n    return 'Post';\n  }\n\n  if (p === 'x' || p.includes('twitter')) {\n    return 'Post';\n  }\n\n  if (p.includes('pinterest')) {\n    return 'Pin';\n  }\n\n  return 'Post';\n}\n\nfunction getTitle(platform = '', post = {}) {\n  const p = platform.toLowerCase();\n\n  const fallbackTitle = getFallbackTitle(platform, post);\n\n  if (p.includes('youtube')) {\n    return clean(captions.youtubeTitle || post.settings?.title || fallbackTitle);\n  }\n\n  if (p.includes('tiktok')) {\n    return clean(post.settings?.title || captions.youtubeTitle || fallbackTitle);\n  }\n\n  if (p.includes('pinterest')) {\n    return clean(post.settings?.title || captions.youtubeTitle || fallbackTitle);\n  }\n\n  if (p.includes('facebook')) {\n    return fallbackTitle;\n  }\n\n  if (p.includes('instagram')) {\n    return fallbackTitle;\n  }\n\n  if (p.includes('threads')) {\n    return fallbackTitle;\n  }\n\n  return clean(post.settings?.title || fallbackTitle);\n}\n\nfunction getCaption(platform = '', post = {}) {\n  const p = platform.toLowerCase();\n  const postContent = clean(post.value?.[0]?.content || '');\n\n  if (p.includes('tiktok')) {\n    return clean(captions.tiktokCaption || postContent);\n  }\n\n  if (p.includes('instagram')) {\n    return clean(captions.instagramCaption || postContent);\n  }\n\n  if (p.includes('facebook')) {\n    return clean(captions.facebookMessage || postContent);\n  }\n\n  if (p.includes('youtube')) {\n    return clean(captions.youtubeDescription || postContent);\n  }\n\n  if (p.includes('threads')) {\n    return clean(captions.threadsCaption || postContent);\n  }\n\n  if (p.includes('pinterest')) {\n    return clean(captions.pinterestDescription || postContent);\n  }\n\n  return postContent;\n}\n\nconst failureReason = responseLooksEmpty\n  ? 'Create Post in Postiz returned an empty or incomplete response'\n  : errorMessage || 'Postiz post creation failed';\n\nlet logRows = posts.map((post) => {\n  const rawPlatform = clean(post.settings?.__type || 'Unknown');\n  const platform = formatPlatform(rawPlatform);\n\n  return {\n    execution_id: executionId,\n    timestamp,\n    status: success ? 'SUCCESS' : 'FAILED',\n    video_name: videoName,\n    video_id: videoId,\n    platform,\n    post_type: getPostType(platform, post),\n    title: truncate(getTitle(platform, post), 300),\n    caption: truncate(getCaption(platform, post), 3000),\n    postiz_upload_id: postizUploadId,\n    postiz_post_id: postizPostId,\n    error_message: success ? '' : truncate(failureReason, 3000),\n    failed_node: success ? '' : 'Create Post in Postiz',\n  };\n});\n\nif (!logRows.length) {\n  const fallbackTitle = clean(\n    captions.youtubeTitle ||\n    captions.contentBrief?.topic ||\n    payloadData.contentBrief?.topic ||\n    ''\n  );\n\n  logRows = [\n    {\n      execution_id: executionId,\n      timestamp,\n      status: 'FAILED',\n      video_name: videoName,\n      video_id: videoId,\n      platform: 'Unknown',\n      post_type: 'Post',\n      title: truncate(fallbackTitle, 300),\n      caption: truncate(\n        captions.youtubeDescription ||\n          captions.tiktokCaption ||\n          captions.instagramCaption ||\n          captions.facebookMessage ||\n          captions.threadsCaption ||\n          '',\n        3000\n      ),\n      postiz_upload_id: postizUploadId,\n      postiz_post_id: postizPostId,\n      error_message: 'No target platform posts were found in Build Postiz Payload',\n      failed_node: 'Build Postiz Payload',\n    },\n  ];\n}\n\nconst platformList = logRows.map((row) => row.platform).join(', ');\n\nconst skippedPlatformList = skippedPlatforms.length\n  ? skippedPlatforms.join(', ')\n  : 'None';\n\nconst telegramMessage = success\n  ? `✅ Video automation completed\n\nVideo: ${videoName}\nStatus: SUCCESS\nPosted Platforms: ${platformList}\nSkipped Platforms: ${skippedPlatformList}\nPostiz Post ID: ${postizPostId || 'N/A'}\nTime: ${timestamp}\nExecution ID: ${executionId}`\n  : `❌ Video automation failed at posting stage\n\nVideo: ${videoName}\nStatus: FAILED\nTarget Platforms: ${platformList}\nSkipped Platforms: ${skippedPlatformList}\nFailed Node: ${logRows[0]?.failed_node || 'Create Post in Postiz'}\nError: ${truncate(logRows[0]?.error_message || failureReason, 3000)}\nTime: ${timestamp}\nExecution ID: ${executionId}`;\n\nreturn {\n  json: {\n    execution_id: executionId,\n    timestamp,\n    status: success ? 'SUCCESS' : 'FAILED',\n    video_name: videoName,\n    video_id: videoId,\n    platforms: platformList,\n    skipped_platforms: skippedPlatformList,\n    postiz_post_id: postizPostId,\n    postiz_upload_id: postizUploadId,\n    logRows,\n    telegramMessage,\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        -1824
+      ],
+      "id": "1fc9cef2-ed67-471a-8b96-433dd4992a44",
+      "name": "Build Log Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $json.logRows || [];\n\nreturn rows.map(row => ({\n  json: row,\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2288,
+        -1920
+      ],
+      "id": "b9d34024-932b-498e-bca7-300df4d889e3",
+      "name": "Expand Sheet Rows"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Video Automation Logs",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Post_Log",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "execution_id": "={{$json.execution_id}}",
+            "timestamp": "={{$json.timestamp}}",
+            "failed_node": "={{$json.failed_node}}",
+            "error_message": "={{$json.error_message}}",
+            "postiz_post_id": "={{$json.postiz_post_id}}",
+            "postiz_upload_id": "={{$json.postiz_upload_id}}",
+            "caption": "={{$json.caption}}",
+            "title": "={{$json.title}}",
+            "post_type": "={{$json.post_type}}",
+            "platform": "={{$json.platform}}",
+            "video_id": "={{$json.video_id}}",
+            "video_name": "={{$json.video_name}}",
+            "status": "={{$json.status}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "video_name",
+              "displayName": "video_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "video_id",
+              "displayName": "video_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "platform",
+              "displayName": "platform",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "post_type",
+              "displayName": "post_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "caption",
+              "displayName": "caption",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "postiz_upload_id",
+              "displayName": "postiz_upload_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "postiz_post_id",
+              "displayName": "postiz_post_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "failed_node",
+              "displayName": "failed_node",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2560,
+        -1920
+      ],
+      "id": "7c6b52fc-7f05-4611-a475-df67fdfa68a3",
+      "name": "Append row in sheet"
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{$json.telegramMessage}}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2560,
+        -1744
+      ],
+      "id": "7a379e4c-bcc0-4623-b8d9-3412acda3994",
+      "name": "Telegram - Send Notification",
+      "webhookId": "YOUR_WEBHOOK_ID_HERE"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ALLOW_POSTING = true;\n// true = live posting mode\n// false = caption testing only\n\nreturn {\n  json: {\n    ...$json,\n    allowPosting: ALLOW_POSTING,\n    postingMode: ALLOW_POSTING ? 'LIVE_POSTING' : 'CAPTION_ONLY',\n    checkedAt: new Date().toISOString(),\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1744,
+        -2160
+      ],
+      "id": "d2384ed6-e0fe-4164-b560-68a9e99a7404",
+      "name": "Posting Safety Gate"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2ac8d32a-517e-4a38-bd5b-6e4958aca04d",
+              "leftValue": "={{$json.allowPosting}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2000,
+        -2160
+      ],
+      "id": "10d1899f-5d36-4d94-82ab-c26010ed4650",
+      "name": "IF - Allow Posting"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputItem = $input.first();\nconst data = inputItem?.json || {};\n\nconst rows = Array.isArray(data.logRows) ? data.logRows : [];\nconst skippedPlatforms = data.skipped_platforms || data.skippedPlatforms || 'None';\n\nfunction clean(value = '') {\n  return String(value || '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction limit(value = '', max = 900) {\n  const text = clean(value);\n  return text.length > max ? text.slice(0, max - 3) + '...' : text;\n}\n\nfunction titleLine(title = '') {\n  const cleaned = clean(title);\n\n  if (!cleaned || cleaned === 'N/A') {\n    return '';\n  }\n\n  return `Title: ${cleaned}\\n`;\n}\n\nif (!rows.length) {\n  return [\n    {\n      json: {\n        telegramMessage: `❌ Video automation log failed\n\nNo platform log rows were found.\nVideo: ${clean(data.video_name || 'N/A')}\nStatus: FAILED\nTime: ${clean(data.timestamp || new Date().toISOString())}\nExecution ID: ${clean(data.execution_id || 'N/A')}`,\n      },\n    },\n  ];\n}\n\nreturn rows.map((row) => {\n  const status = clean(row.status || data.status || 'UNKNOWN');\n  const success = status === 'SUCCESS';\n  const icon = success ? '✅' : '❌';\n\n  const platform = clean(row.platform || 'Unknown');\n  const videoName = clean(row.video_name || data.video_name || 'N/A');\n  const postType = clean(row.post_type || 'N/A');\n  const title = clean(row.title || '');\n  const uploadId = clean(row.postiz_upload_id || data.postiz_upload_id || 'N/A');\n  const postId = clean(row.postiz_post_id || data.postiz_post_id || 'N/A');\n  const timestamp = clean(row.timestamp || data.timestamp || new Date().toISOString());\n  const executionId = clean(row.execution_id || data.execution_id || 'N/A');\n  const errorMessage = limit(row.error_message || 'Postiz post creation failed', 900);\n  const failedNode = clean(row.failed_node || 'Create Post in Postiz');\n\n  const telegramMessage = success\n    ? `✅ ${platform} post created\n\nVideo: ${videoName}\nStatus: SUCCESS\nPlatform: ${platform}\nPost Type: ${postType}\n${titleLine(title)}Postiz Upload ID: ${uploadId}\nPostiz Post ID: ${postId}\nSkipped Platforms: ${skippedPlatforms}\nTime: ${timestamp}\nExecution ID: ${executionId}`\n    : `❌ ${platform} post failed\n\nVideo: ${videoName}\nStatus: FAILED\nPlatform: ${platform}\nPost Type: ${postType}\n${titleLine(title)}Failed Node: ${failedNode}\nError: ${errorMessage}\nSkipped Platforms: ${skippedPlatforms}\nTime: ${timestamp}\nExecution ID: ${executionId}`;\n\n  return {\n    json: {\n      ...row,\n      telegramMessage,\n    },\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2288,
+        -1744
+      ],
+      "id": "4a2b573f-3e83-4073-a4d8-44fcdc0a5b3d",
+      "name": "Expand Telegram Messages"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Drive Trigger": {
+      "main": [
+        [
+          {
+            "node": "IF - Only Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Only Video": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "Visual Summary Helper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Whisper Transcription": {
+      "main": [
+        [
+          {
+            "node": "Build Content Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Caption Generator": {
+      "main": [
+        [
+          {
+            "node": "Validate Captions and Finalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Video Again": {
+      "main": [
+        [
+          {
+            "node": "Postiz Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Postiz Payload": {
+      "main": [
+        [
+          {
+            "node": "Create Post in Postiz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Visual Summary Helper": {
+      "main": [
+        [
+          {
+            "node": "Download Video for Whisper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Video for Whisper": {
+      "main": [
+        [
+          {
+            "node": "Whisper Transcription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Content Context": {
+      "main": [
+        [
+          {
+            "node": "Create Current Video Fact Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postiz Upload": {
+      "main": [
+        [
+          {
+            "node": "Build Postiz Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Post in Postiz": {
+      "main": [
+        [
+          {
+            "node": "Build Log Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Current Video Fact Sheet": {
+      "main": [
+        [
+          {
+            "node": "Parse Current Video Fact Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Current Video Fact Sheet": {
+      "main": [
+        [
+          {
+            "node": "Ollama Caption Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Captions and Finalize": {
+      "main": [
+        [
+          {
+            "node": "Posting Safety Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Log Data": {
+      "main": [
+        [
+          {
+            "node": "Expand Sheet Rows",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Expand Telegram Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Sheet Rows": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Posting Safety Gate": {
+      "main": [
+        [
+          {
+            "node": "IF - Allow Posting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Allow Posting": {
+      "main": [
+        [
+          {
+            "node": "Download Video Again",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Telegram Messages": {
+      "main": [
+        [
+          {
+            "node": "Telegram - Send Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": []
+}
